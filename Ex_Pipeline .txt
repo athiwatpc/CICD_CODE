@@ -1,0 +1,60 @@
+
+pipeline {
+    agent any
+    environment {
+        maven = 'M3'
+    }
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout([$class: 'GitSCM', branches: [[name: '*/uat']],
+                    userRemoteConfigs: [[
+                        url: 'https://gitlab.com/duckbet/betreadarmaster.git',
+                        credentialsId : 'd908f150-829e-4b7d-9d52-05f446c73ac2'
+                    ]]
+                ])
+           
+            }
+        }
+        stage('Mvn Install') {
+            steps {
+                sh 'mvn --version'
+                //sh "mvn clean verify"
+                sh "mvn install"
+            }
+        }
+        stage('Buid Image') {
+            steps {
+               script {
+                      try {
+                           sh 'docker rm $(docker stop $(docker ps -a -q -f ancestor=betreadar-ws))'
+                           sh 'docker rmi -f betreadar-ws'
+                           sh 'docker build -t betreadar-ws .'
+                           sh 'docker run -d -p 8083:8095 --restart=always betreadar-ws .'
+                           
+                      } catch (Exception e) {
+                         
+                          sh 'docker build -t betreadar-ws .'
+                          sh 'docker run -d -p 8083:8095 --restart=always betreadar-ws .'
+                          echo 'Exception Run : ' + e.toString()
+                          
+                      }
+                    }
+            }
+        }
+        
+    }//stages
+    post{
+            success{
+                node(null){
+                    //notifyLINE("succeed")
+                }
+                
+            }
+            failure{
+                node(null){
+                    //notifyLINE("failed")
+                }
+            }
+        }
+}
